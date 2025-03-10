@@ -2,19 +2,19 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: metrics-b
+  name: metrics-a
 spec:
   replicas: 1
   selector:
     matchLabels:
-      application: metrics-b
+      application: metrics-a
   template:
     metadata:
       labels:
-        application: metrics-b
+        application: metrics-a
     spec:
       containers:
-        - image: quay.io/skupper/simple-prom-metrics
-          name: metrics-b
+        - image: quay.io/skupper/simple-prom-metrics:v2
+          name: metrics-a
           imagePullPolicy: IfNotPresent
 ---

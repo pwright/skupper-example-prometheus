@@ -1,14 +1,20 @@
-IMAGE := quay.io/skupper/simple-prom-metrics
+#REPOSITORY := quay.io/skupper/simple-prom-metrics
+REPO := quay.io/skupper/simple-prom-metrics
+IMAGE := simple-prom-metrics
 
 .PHONY: build
 build:
-	docker build -t ${IMAGE} .
+	go build -o ${IMAGE} .
+
+.PHONY: docker
+docker: build
+	docker build -t ${REPO}:v2 .
 
 .PHONY: run
-run: build
-	docker run -p 8080:8080 ${IMAGE}
+run: docker
+	docker run -p 8080:8080 ${REPO}
 
 # Prerequisite: docker login quay.io
 .PHONY: push
-push: build
-	docker push ${IMAGE}
+push: docker
+	docker push ${REPO}:v2

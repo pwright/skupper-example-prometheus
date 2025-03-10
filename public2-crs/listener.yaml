@@ -1,0 +1,19 @@
+---
+apiVersion: skupper.io/v2alpha1
+kind: Listener
+metadata:
+  name: metrics-a
+spec:
+  routingKey: metric-a
+  port: 8080
+  host: metrics-a
+---
+apiVersion: skupper.io/v2alpha1
+kind: Listener
+metadata:
+  name: metrics-b
+spec:
+  routingKey: metric-b
+  port: 8080
+  host: metrics-b
+---
