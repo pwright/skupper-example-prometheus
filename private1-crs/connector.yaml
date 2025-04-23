@@ -1,0 +1,8 @@
+apiVersion: skupper.io/v2alpha1
+kind: Connector
+metadata:
+  name: metrics-a
+spec:
+  routingKey: metric-a
+  port: 8080
+  selector: application=metrics-a

@@ -1,9 +1,13 @@
-FROM golang:1.12
+FROM golang:1.22
 
-WORKDIR /go/src/app
-COPY . .
+WORKDIR /app
 
-RUN go get -d -v ./...
-RUN go install -v ./...
+COPY simple-prom-metrics.go .
+COPY go.mod .
+COPY go.sum .
+RUN go mod download
+COPY .  .
+RUN make build
 
-CMD ["app"]
+WORKDIR /app
+CMD ["/app/simple-prom-metrics"]

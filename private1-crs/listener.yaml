@@ -1,0 +1,10 @@
+---
+apiVersion: skupper.io/v2alpha1
+kind: Listener
+metadata:
+  name: prometheus
+spec:
+  routingKey: prom
+  port: 9090
+  host: prometheus
+---

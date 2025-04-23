@@ -1,0 +1,202 @@
+title: Multi-cluster Prometheus Metrics Gathering Demo
+overview: |
+  This tutorial demonstrates how to deploy metric generators across
+  multiple Kubernetes clusters that are located in different public and
+  private cloud providers and to additionally deploy the
+  [Prometheus](https://prometheus.io) monitoring system to gather
+  metrics across multiple clusters, discovering the endpoints to be
+  scraped dynamically, as soon as services are exposed through the
+  Skupper Virtual Application Network.
+
+  In this tutorial, you will create a Virtual Application Network that
+  enables communications across the public and private clusters. You
+  will then deploy the metric generators and Prometheus server to individual
+  clusters. You will then access the Prometheus server Web UI to
+  browse targets, query and graph the collected metrics.
+sites:
+  public1:
+    title: Public1
+    platform: kubernetes
+    namespace: public1
+    env:
+      KUBECONFIG: ~/.kube/config-public1
+  public2:
+    title: Public2
+    platform: kubernetes
+    namespace: public2
+    env:
+      KUBECONFIG: ~/.kube/config-public2
+  private1:
+    title: Private1
+    platform: kubernetes
+    namespace: private1
+    env:
+      KUBECONFIG: ~/.kube/config-private1
+steps:
+  - standard: platform/install_the_skupper_command_line_tool
+  - standard: platform/access_your_kubernetes_clusters
+  - standard: platform/install_skupper_on_your_kubernetes_clusters
+  - title: Create your sites
+    preamble: |
+      A Skupper _site_ is a location where components of your
+      application are running.  Sites are linked together to form a
+      network for your application.  In Kubernetes, a site is associated
+      with a namespace.
+
+      Use the kubectl apply command to declaratively create sites in the kubernetes
+      namespaces. This deploys the Skupper router. Then use kubectl get site to see
+      the outcome.
+
+      **Note:** If you are using Minikube, you need to [start minikube
+      tunnel][minikube-tunnel] before you run `skupper init`.
+
+      [minikube-tunnel]: https://skupper.io/start/minikube.html#running-minikube-tunnel
+    commands:
+      public1:
+        - run: kubectl apply -f ./public1-crs/site.yaml
+        - run: kubectl wait --for condition=Ready --timeout=60s site/public1
+          output: |
+            site.skupper.io/public1 created
+            site.skupper.io/public1 condition met
+      public2:
+        - run: kubectl apply -f ./public2-crs/site.yaml
+        - run: kubectl wait --for condition=Ready --timeout=60s site/public2
+          output: |
+            site.skupper.io/public2 created
+            site.skupper.io/public2 condition met
+      private1:
+        - run: kubectl apply -f ./private1-crs/site.yaml
+        - run: kubectl wait --for condition=Ready --timeout=60s site/private1
+          output: |
+            site.skupper.io/private1 created
+            site.skupper.io/private1 condition met
+  - title: Link your sites
+    preamble: |
+      A Skupper _link_ is a channel for communication between two sites.
+      Links serve as a transport for application connections and
+      requests.
+
+      Creating a link requires use of two `skupper` commands in
+      conjunction, `skupper token issue` and `skupper token redeem`.
+
+      The `skupper token issue` command generates a secret token that
+      signifies permission to create a link.  The token also carries the
+      link details.  Then, in a remote site, The `skupper token
+      redeem` command uses the token to create a link to the site
+      that generated it.
+
+      **Note:** The link token is truly a *secret*.  Anyone who has the
+      token can link to your site.  Make sure that only those you trust
+      have access to it.
+
+      First, use `skupper token issue` in public1 to generate the
+      token.  Then, use `skupper token redeem` in public2 to link the
+      sites.  Using the flag redemptions-allowed specifies how many tokens
+      are created.  In this scenario public2 and private1 will connect to
+      public1 so we will need two tokens.
+    commands:
+      public1:
+        - run: skupper token issue ./public1.token --redemptions-allowed 2
+      public2:
+        - run: skupper token redeem ./public1.token
+        - run: skupper token issue ./public2.token
+      private1:
+        - run: skupper token redeem ./public1.token
+        - run: skupper token redeem ./public2.token
+    postamble: |
+      If your terminal sessions are on different machines, you may need
+      to use `scp` or a similar tool to transfer the token securely.  By
+      default, tokens expire after a single use or 15 minutes after
+      creation. 
+  - title: Deploy the Metrics Generators
+    preamble: |
+      After creating the Skupper network, deploy the Metrics Generators
+      on one of the public clusters and the private cluster.
+    commands:
+      private1:
+        - run: kubectl apply -f ./private1-crs/metrics-deployment-a.yaml
+          output: deployment.apps/metrics-a created
+      public1:
+        - run: kubectl apply -f ./public1-crs/metrics-deployment-b.yaml
+          output: deployment.apps/metrics-b created
+  - title: Deploy the Prometheus Server on the other public cluster.
+    preamble: |
+      Deploy the Prometheus server in the public2 cluster. 
+    commands:
+      public2:
+        - run: kubectl apply -f ./public2-crs/prometheus-deployment.yaml
+          output: |
+            role.rbac.authorization.k8s.io/prometheus created
+            serviceaccount/prometheus created
+            rolebinding.rbac.authorization.k8s.io/prometheus created
+            configmap/prometheus-conf created
+            deployment.apps/prometheus created
+  - title: Expose the Metrics Deployments to the Virtual Application Network
+    preamble: |
+      Create Skupper listeners and connectors to expose the metric generator deployments in each namespace.
+    commands:
+      private1:
+        - run: kubectl apply -f ./private1-crs/listener.yaml
+        - run: kubectl apply -f ./private1-crs/connector.yaml
+          output: |
+            listener.skupper.io/prometheus created
+            connector.skupper.io/metric-a created
+      public1:
+        - run: kubectl apply -f ./public1-crs/listener.yaml
+        - run: kubectl apply -f ./public1-crs/connector.yaml
+          output: |
+            listener.skupper.io/prometheus created
+            connector.skupper.io/metric-b created
+      public2:
+        - run: kubectl apply -f ./public2-crs/listener.yaml
+        - run: kubectl apply -f ./public2-crs/connector.yaml
+          output: |
+            listener.skupper.io/metrics-a created
+            listener.skupper.io/metrics-b created
+            connector.skupper.io/prometheus created
+    
+  - title: Label services as Prometheus dedicated collection points
+    preamble: |
+      In Prometheus, a service label with "app=metrics" indicates that
+      the service is specifically designed to expose metrics for
+      monitoring purposes. This label allows Prometheus to easily identify
+      and scrape data from that service to gather performance and health
+      information.
+    commands:
+      public2:
+        - run: kubectl label service/metrics-a app=metrics
+        - run: kubectl label service/metrics-b app=metrics
+          output: |
+            service/metrics-a labeled
+            service/metrics-b labeled
+  - title: Access the Prometheus Web UI
+    preamble: |
+      In the terminal for the private1 cluser, start a firefox browser and access the Prometheus UI
+    commands:
+      private1:
+        - run: /usr/bin/firefox --new-window  "http://$(kubectl get service prometheus -o=jsonpath='{.spec.clusterIP}'):9090/" 
+    postamble: |
+       In the Prometheus UI, navigate to Status->Target health and verify that the metric endpoints are in the UP state
+  - title: Verify Metrics
+    preamble: |
+      In the Prometheus UI, navigate to the Query tab and insert the following expression to execute in the + Add query
+      and click execute
+    commands:
+      private1:
+        - run: avg(rate(rpc_durations_seconds_count[1m])) by (job, service)    
+    postamble: |
+        Observe the metrics data in either the Table or Graph view provided in the UI.
+  - title: Cleaning up
+    preamble: |
+      Restore your cluster environment by returning the resource created in the
+      demonstration. On each cluster, delete the demo resources and the skupper network:
+    commands:
+      private1:
+        - run: skupper site delete --all
+        - run: kubectl delete -f ./private1-crs/metrics-deployment-a.yaml
+      public1:
+        - run: skupper site delete --all
+        - run: kubectl delete -f ./public1-crs/metrics-deployment-b.yaml
+      public2:
+        - run: skupper site delete --all
+        - run: kubectl delete -f ./public2-crs/prometheus-deployment.yaml
