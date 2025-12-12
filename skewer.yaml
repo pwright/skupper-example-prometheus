@@ -165,9 +165,7 @@ steps:
       information.
     commands:
       public2:
-        - run: sleep 600 && kubectl wait --for=jsonpath='{.spec.clusterIP}' --timeout=900s service/metrics-a
-          apply: test
-        - run: kubectl wait --for=jsonpath='{.spec.clusterIP}' --timeout=900s service/metrics-b
+        - run: kubectl wait deployment/prometheus --for=condition=Available --timeout=600s
           apply: test
         - run: kubectl label service/metrics-a app=metrics
         - run: kubectl label service/metrics-b app=metrics
@@ -176,21 +174,17 @@ steps:
             service/metrics-b labeled
   - title: Access the Prometheus Web UI
     preamble: |
-      In the terminal for the private1 cluser, start a firefox browser and access the Prometheus UI
+      In a browser access the Prometheus UI at http://{ip}:9090 where ip is output of following command:
     commands:
       private1:
-        - run: /usr/bin/firefox --new-window  "http://$(kubectl get service prometheus -o=jsonpath='{.spec.clusterIP}'):9090/"
+        - run: kubectl get service prometheus -o=jsonpath='{.spec.clusterIP}')
           apply: readme
     postamble: |
        In the Prometheus UI, navigate to Status->Target health and verify that the metric endpoints are in the UP state
   - title: Verify Metrics
     preamble: |
-      In the Prometheus UI, navigate to the Query tab and insert the following expression to execute in the + Add query
-      and click execute
-    commands:
-      private1:
-        - run: avg(rate(rpc_durations_seconds_count[1m])) by (job, service)    
-          apply: readme
+      In the Prometheus UI, navigate to the Query tab and insert the following expression to execute in the + Add query and click execute:
+      `avg(rate(rpc_durations_seconds_count[1m])) by (job, service)`
     postamble: |
         Observe the metrics data in either the Table or Graph view provided in the UI.
 

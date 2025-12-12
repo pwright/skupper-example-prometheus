@@ -416,26 +416,20 @@ service/metrics-b labeled
 
 ## Step 11: Access the Prometheus Web UI
 
-In the terminal for the private1 cluser, start a firefox browser and access the Prometheus UI
+In a browser access the Prometheus UI at http://{ip}:9090 where ip is output of following command:
 
 _**Private1:**_
 
 ~~~ shell
-/usr/bin/firefox --new-window  "http://$(kubectl get service prometheus -o=jsonpath='{.spec.clusterIP}'):9090/"
+kubectl get service prometheus -o=jsonpath='{.spec.clusterIP}')
 ~~~
 
 In the Prometheus UI, navigate to Status->Target health and verify that the metric endpoints are in the UP state
 
 ## Step 12: Verify Metrics
 
-In the Prometheus UI, navigate to the Query tab and insert the following expression to execute in the + Add query
-and click execute
-
-_**Private1:**_
-
-~~~ shell
-avg(rate(rpc_durations_seconds_count[1m])) by (job, service)
-~~~
+In the Prometheus UI, navigate to the Query tab and insert the following expression to execute in the + Add query and click execute:
+`avg(rate(rpc_durations_seconds_count[1m])) by (job, service)`
 
 Observe the metrics data in either the Table or Graph view provided in the UI.
 
